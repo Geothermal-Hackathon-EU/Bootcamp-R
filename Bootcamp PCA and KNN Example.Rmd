@@ -1,0 +1,182 @@
+---
+title: "PCA and Clustering in R - Bootcamp"
+author: "Sarang Rao, Dhiyo"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggcorrplot)
+library(psych)
+library(tidyverse)
+library(factoextra)
+library(ggfortify)
+library(readr)
+library(skimr)
+
+```
+
+## Principal Component Analysis (PCA) Example
+
+Principal Component Analysis, is a dimensionality reduction method. It helps cluster data into a reduced dimension space and make data more digestible  There are two general methods to perform PCA in R :
+
+   - Spectral decomposition which examines the co-variances / correlations between variables
+   - Singular value decomposition which examines the co-variances / correlations between individuals
+   
+The function princomp() uses the spectral decomposition approach. The functions prcomp() and PCA()[FactoMineR] use the singular value decomposition (SVD). several different packages offer ability to run PCA analysis.
+
+Lets start by loading the same dataset that we used for the ML-1 bootcamp
+
+
+```{r , echo=FALSE}
+PCA_database4 <- read_csv("Downloads/geohackathon_bootcamps-main/clustering_example/PCA_database4.csv")
+```
+
+```{r }
+skim(PCA_database4)
+
+```
+
+It looks like there is one missing value. We can drop the value. In some cases, we can use imputation methods to fill in the missing value. For the first run, we can drop the NA and proceed.
+
+
+```{r }
+PCA_database4 <- PCA_database4 %>%
+  drop_na()
+```
+
+Before we start doing PCA lets look through the correlation, density and distribution of data in each of the variable pair.
+
+```{r }
+pairs.panels(PCA_database4[,6:14], jiggle = T,
+             method = "pearson", # correlation method
+             hist.col = "#00AFBB",
+             density = TRUE,  # show density plots
+             ellipses = TRUE # show correlation ellipses
+             )
+```
+
+
+  Compute a correlation matrix
+``` {r}
+corr <- round(cor(PCA_database4[,6:14],), 1)
+corr
+```
+
+  Lets do a correlation plot
+```{r}
+ggcorrplot(corr, method = "circle")
+```
+
+```{r, echo=FALSE}
+# ggcorrplot(corr)
+
+```
+
+## PCA 
+
+
+Lets perform the PCA using 'prcomp()' function. First, lets convert label to a Factor instead of a number. 
+
+Then, we run a PCA on the brine components (Cl mg/l,	SO4 mg/l,	Na mg/l,	Ca mg/l,	Mg mg/l,	Sr mg/l,	K mg/l,	Mn mg/l,	Ba mg/l,	Pb mg/l) and plot it.	
+
+
+```{r }
+PCA_database4$Label <- as.factor(PCA_database4$Label)
+df <- PCA_database4[6:14]
+
+set.seed(234)
+
+pca_res <- prcomp(df, scale = F)
+
+autoplot(pca_res)+
+  theme_minimal()
+
+```
+
+``` {r}
+
+autoplot(pca_res, data = PCA_database4, colour = 'Label',loadings=T)+
+  theme_minimal()
+
+summary(pca_res)
+
+```
+
+We visualize eigenvalues (scree plot). Show the percentage of variances explained by each principal component.
+
+``` {r }
+
+fviz_eig(pca_res)
+```
+
+### Graph of individuals. 
+
+  Individuals with a similar profile are grouped together.
+    
+```{r}
+fviz_pca_ind(pca_res,
+             col.ind = "cos2", # Color by the quality of representation
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE    # Avoid text overlapping
+             )
+```
+
+### Graph of variables. 
+
+  Positive correlated variables point to the same side of the plot. Negative correlated variables point to opposite sides of the graph.
+
+```{r}
+fviz_pca_var(pca_res,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+
+```
+
+### Clustering
+
+Lets get to running the KNN clustering on our data set.
+```{r}
+set.seed(1)
+
+autoplot(kmeans(x = df, 5), data = df) +
+  theme_minimal()
+
+```
+
+
+Lets look at the optimal number of clusters for k-means clustering. We can use Elbow method (wss) or Silhouette
+```{r}
+
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(df, k, nstart = 10 )$tot.withinss
+}
+
+# Compute and plot wss for k = 1 to k = 15
+k.values <- 1:15
+
+# extract wss for 2-15 clusters
+wss_values <- map_dbl(k.values, wss)
+
+plot(k.values, wss_values,
+       type="b", pch = 19, frame = FALSE, 
+       xlab="Number of clusters K",
+       ylab="Total within-clusters sum of squares")
+```
+
+
+``` {r}
+# fviz_nbclust(x = df
+#             , kmeans 
+#             , method = "wss")
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

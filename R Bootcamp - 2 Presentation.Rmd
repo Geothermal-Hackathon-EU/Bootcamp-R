@@ -1,0 +1,142 @@
+---
+title: "Bootcamp R: Analysis and Modelling - a Tidy way"
+output:
+  ioslides_presentation:
+    widescreen: yes
+  beamer_presentation: default
+  slidy_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(imager)
+myimg <- load.image("./tidy-1.png")
+
+```
+# R
+
+## [what we are going to do:] An overview of R
+
+### R is very powerful. Statistics roots, thus deep data analysis heritage.
+
+
+## pros and cons
+### Benefits from
+
+- wide availability of packages
+- diversity in implementation
+- audited and tested by community
+- good documentation
+  
+### Challenges (for a newbie)
+- Does not follow regular computer science programming paradigms
+- package and function discovery can seem overwhelming 
+  - (same/similar methods implemented slightly differently)
+- some packages might not play well with others right out of the box
+
+## Tidy framework
+
+#### The tidyverse is a collection of R packages for data analysis that are developed with common ideas and norms. 
+
+#### From Wickham et al. (2019):*“At a high level, the tidyverse is a language for solving data science challenges with R code. Its primary goal is to facilitate a conversation between a human and a computer about data. Less abstractly, the tidyverse is a collection of R packages that share a high-level design philosophy and low-level grammar and data structures, so that learning one package makes it easier to learn the next.”*
+
+- Design for Humans
+- Reuse existing data structures
+- Design for pipes and functional programming
+  
+  
+## Tidy-ness of data:
+
+### Principles or characteristics that make a dataset tidy:
+
+1. Each variable must have its own column.
+2. Each observation must have its own row.
+3. Each value must have its own cell.
+``` {r, echo = FALSE}
+plot(myimg)
+
+```
+
+# Pipes %>%
+
+##
+    Lets work through an example of the childrens' poem 'Little Bunny Foo Foo'
+      example often cited by Hadley Wickham as he described piping.
+  
+      Little bunny Foo Foo
+      Went hopping through the forest
+      Scooping up the field mice
+      And bopping them on the head
+      
+## Scripting Steps
+
+  As a code, we create a 'little_bunny' object called 'foo_foo'
+
+    foo_foo <- little_bunny()
+
+  Foo foo performs a bunch of actions like hop, scoop and bop
+
+    foo_foo_1 <- hop(foo_foo, through = forest)
+    foo_foo_2 <- scoop(foo_foo_1, up = field_mice)
+    foo_foo_3 <- bop(foo_foo_2, on = head)
+  
+  We end up creating a bunch of intermediate objects to hold values
+
+##  Functional way:
+  we can write the steps as a functional composition
+
+    bop(
+      scoop(
+        hop(foo_foo, through = forest),
+        up = field_mice
+       ), 
+     on = head
+    )
+    
+  
+## Using Pipes
+    The code becomes a lot more human readable, and thus easier to maintain and debug.
+    
+      `foo_foo %>%
+      hop(through = forest) %>%
+      scoop(up = field_mice) %>%
+      bop(on = head)`
+
+  This is a good way to approach modelling and data analysis but will not be ideal or would not work for some situations.
+
+## Tidy Package universe
+    list a table of packages by tidy-verse vs outside
+    1. Data import
+    2. Data cleaning and wrangling
+    3. EDA
+    4. Modelling
+    5. Visualisation
+    6. Reporting, Collaboration
+    
+## Exercises for today
+    1. Rework the Machine Learning 1 - Python bootcamp example in R, using Tidy Models
+        a. PCA (& UMP)
+        b. Linear Regression (Random Forest and LM)
+    2. Discuss Tidyverse and Tidy Model
+    3. Discuss and work in Rmarkdown
+    3. Tidy Models vs Caret vs ML3
+    
+    
+## References:
+      Websites
+      - Statistical Tools for High-throughput Data Analysis (STHDA)
+        <http://www.sthda.com/english/>
+      - Tidy Models
+        <https://www.tidymodels.org>
+      - Learning R
+        <https://education.rstudio.com/learn/>
+      
+      Books:
+      - R for Data Science
+        <https://r4ds.had.co.nz/tidy-data.html>
+      - R Markdown Cookbook
+        <https://bookdown.org/yihui/rmarkdown-cookbook/>
+      - Tidy Modeling with R
+        <https://www.tmwr.org/>
+      - Feature Engineering
+        <http://www.feat.engineering/>

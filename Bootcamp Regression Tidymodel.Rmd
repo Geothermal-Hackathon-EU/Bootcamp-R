@@ -1,0 +1,234 @@
+---
+title: "Bootcamp Regression Tidy"
+author: "Sarang Rao, Dhiyo"
+date: "03/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(caret)
+library(ggcorrplot)
+library(psych)
+library(factoextra)
+library(skimr)
+library(magrittr)
+
+
+```
+
+## Modelling using tidy model
+
+In this example we will work through the second exercise (regression analysis) covered in 'Machine Learning Bootcamp 1'. We will cover this using the 'tidymodel' package. tidymodel package was created by Max Kuhn, also big contributor to Caret (another widely used machine learning package). 
+
+tidymodel is a collection of packages that together provide a streamlined, efficient and powerful way for handling all aspects of modelling viz. data import, cleansing, feature engineering, training, fitting and testing. 
+
+  - Parsnip: is useful for accessing different engines
+  - Recipes: is designed to preprocess data, help with feature engineering
+  - workflows: is useful for architect pre-processing, modelling and post-processing together in one framework
+  - tune: helps optimize hyper-parameters
+  - yardstick: measures the effectiveness of models using performance metrics
+  - broom: converts the information in common statistical R objects into user-friendly, predictable formats
+  
+
+
+## Regression
+
+In this example, we will work on a simplified simulated data to estimate production rates based on well tests. It is a single-phase (brine) geothermal well with an electrical submersible pump (ESP). The data is sampled every 0.5 minute. 
+
+The data was shared and made available by our friend and colleague, Pejman Shoeibi Omrani. Lets load the data and use the 'skim()' function to take a high level look
+
+```{r }
+df_raw <- read_csv("Downloads/geohackathon_bootcamps-main/regression_example/example_WT2021.csv")
+skim(df_raw)
+```
+
+Lets plot the flowrate and pumpspeed against pressure
+
+```{r}
+ ggplot(df_raw, aes(x=`Time [min]`)) +
+   geom_point(aes(y = `Flow rate [m3/d]`),color="red",alpha=1/10) +
+   geom_point(aes(y = `Pump speed [rpm]`),color="blue",alpha=1/10) +
+   geom_point(aes(y = `WHP [bar]`*1000),color="green",alpha=1/10) +
+   # Custom the Y scales:
+   scale_y_continuous(
+     # Features of the first axis
+     name = "Axis",
+     # Add a second axis and specify its features
+     sec.axis = sec_axis( ~./1000, name=" WHP Bar",)) +
+   theme_minimal()
+
+```
+
+As the next steps, we should now focus on getting a better understanding of our data. Lets start by doing a paired scatter plot, along with a correlation panel.
+
+
+```{r pressure, echo=FALSE}
+ pairs.panels(df_raw, jiggle = T,
+              method = "pearson", # correlation method
+              hist.col = "#00AFBB",
+              density = T,  # show density plots
+              ellipses = TRUE # show correlation ellipses
+ )
+```
+
+It looks like there is strong correlation amongst some of the variables. So, we choose one and drop highly correlated variables. We will use 'Pump speed [rpm]', 'WHP [bar]' and 'WHT [C]' ] to predict "Flow rate [m3/d]". First we will partition the data into training and test sets. To improve on the model performance we will fold and data and use cross validation during the model building phase
+
+```{r}
+df_raw %<>%
+  rename(.,flow_rate = `Flow rate [m3/d]`)
+
+df_split <- initial_split(data = df_raw,prop = .75)
+
+df_split_train <- training(df_split)
+df_split_test <- testing(df_split)
+df_split_train_folded <- vfold_cv(df_split_train)
+
+```
+
+Now, using the recipe function lets define what we would like to happen. The recipe function only define the steps and processes that need to happen. we can use these as instructions to execute on later. Recipe allows for a host of pre-processing steps. We use scaling, but in addition to this we have access to other feature engineering tools like PCA, UMP, dummy variable, hash coding and imputation techniques.
+
+```{r}
+rf_rec <- recipe(flow_rate ~`Pump speed [rpm]`+ `WHP [bar]`+`WHT [C]`,data = df_split_train ) %>%
+  step_scale(all_predictors())
+
+rf_rec
+```
+
+
+We now specify what algorithm and engine we want to use.
+
+``` {r}
+rf_spec <- rand_forest(mode = "regression",engine = "ranger")
+```
+
+We now use workflows to bring everything together
+```{r}
+df_wf <- workflow() %>%
+    add_recipe(rf_rec) %>%
+    add_model(rf_spec)
+```
+
+
+We can now use the workflow to run the fit and create the model. we can then examine the predicted values and model performance using .predictions and collect_meterics function
+
+```{r}
+rf_rs <- df_wf %>%
+  fit_resamples(resamples = df_split_train_folded,
+                control = control_resamples(save_pred = T))
+
+# rf_rs$.predictions
+collect_metrics(rf_rs)
+```
+
+The numbers look good. Lets visualise the actual vs predicted fit.
+```{r}
+
+collect_predictions(rf_rs)%>%
+  ggplot(aes(flow_rate,.pred,colour= id))+
+  geom_point(alpha=.5)+
+  geom_abline(lty = 2) + 
+  labs(x="Actual", y="Predicted",title = "Flow Rate: Fit Actual vs Predicted Performance")+
+  theme_minimal()
+
+```
+
+The model seems to be performing well. Lets run the model on the hold-out data set
+``` {r}
+rf_pred <- df_wf %>% last_fit(split = df_split)
+```
+
+Lets look at the predictions and the performance meterics
+
+```{r}
+# rf_pred$.predictions
+collect_metrics(rf_pred)
+```
+
+Here is our final model performance
+```{r}
+# rf_pred$.predictions
+collect_predictions(rf_pred)%>%
+  ggplot(aes(flow_rate,.pred,colour= id))+
+  geom_point(alpha=.5)+
+  geom_abline(lty = 2) + 
+  labs(x="Actual", y="Predicted",title = "Flow Rate: Actual vs Predicted using")+
+  theme_minimal()
+
+
+```
+
+Lets try this with another method, liner regression using glmnet engine. We set the recipe, scale and normalize the predictors
+
+```{r}
+set.seed(124)
+
+lm_rec <- recipe(flow_rate ~`Pump speed [rpm]`+ `WHP [bar]`+`WHT [C]`,data = df_split_train ) %>%
+  step_scale(all_predictors()) %>%
+  step_normalize(all_predictors())
+
+lm_spec <- linear_reg(penalty = 1) %>% set_engine("glmnet")
+
+df_wf_lm <- workflow() %>%
+  add_recipe(lm_rec) %>%
+    add_model(lm_spec)
+
+
+lm_rs <- df_wf_lm %>%
+  fit_resamples(resamples = df_split_train_folded,
+                control = control_resamples(save_pred = T))
+
+lm_rs
+collect_metrics(lm_rs)
+
+```
+Lets plot a comparison of Predicted vs actual values to get a visual sense
+
+```{r}
+collect_predictions(lm_rs)%>%
+  ggplot(aes(flow_rate,.pred,colour= id))+
+  geom_abline(lty = 2) + 
+  geom_point(alpha=.5)+
+  labs(x="Actual", y="Predicted",title = "Flow Rate: Actual vs Predicted using")+
+  theme_minimal()
+
+# lm_pred$.predictions
+
+```
+Running the model on the test data set
+
+``` {r}
+lm_pred <- df_wf_lm %>% last_fit(split = df_split)
+
+```
+
+
+Lets Collect the results of the test data set
+``` {r}
+collect_metrics(lm_pred)
+```
+
+Finally, lets plot it out to get a better visual sense of how the model did in its predictions
+``` {r}
+lm_pred$.predictions
+collect_predictions(lm_pred)%>%
+  ggplot(aes(flow_rate,.pred,colour= id))+
+  geom_abline(lty = 2) + 
+  geom_point(alpha=.5)+
+  labs(x="Actual", y="Predicted",title = "Flow Rate: Actual vs Predicted using")+
+  theme_minimal()
+
+
+
+```
+
+
+
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
